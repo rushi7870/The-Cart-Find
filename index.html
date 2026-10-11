@@ -6,6 +6,7 @@
 <title>The Cart Find</title>
 <meta name="description" content="The Cart Find: find it, love it, cart it. Hand-picked product links.">
 <meta name="theme-color" content="#FFFFFF">
+<link rel="icon" href="logo.webp">
 <meta property="og:title" content="The Cart Find">
 <meta property="og:description" content="Find it. Love it. Cart it.">
 <style>
@@ -128,16 +129,17 @@ dialog{overflow:auto}
 <div id="toast" role="status" hidden></div>
 
 <script>
-/* Products shown to every visitor. Add products with Manage products, choose Copy JSON, and paste it over this list. */
-const PRODUCTS=[{t:"One94Store LED Pixel String Light Pack of 1 – 36 Ft Copper Wire Fairy Lights",u:"https://link.amazon/B08emWZAa",c:"Home Decor",img:""}];
+/* Only needed if the site is NOT on github.io (for example your own domain): fill in your GitHub user name and repository name. */
+const GH={owner:"",repo:""};
 const $=s=>document.querySelector(s);
 const ls={g(k){try{return localStorage.getItem(k)}catch(e){return null}},s(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let items=(()=>{try{const a=JSON.parse(ls.g("tcf-products"));if(Array.isArray(a))return a}catch(e){}return PRODUCTS.slice()})();
-const save=()=>ls.s("tcf-products",JSON.stringify(items));
-let tt;const toast=m=>{const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2200)};
+let items=[],pend={},ed=-1,cat="All",q="",sort="new",synced=false,tt;
+const cart='<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 10.5h9.2L19 7H6.2"/><circle cx="9" cy="19" r="1.3"/><circle cx="16" cy="19" r="1.3"/></svg>';
+const toast=m=>{const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3500)};
 async function copy(text,msg){try{await navigator.clipboard.writeText(text)}catch(e){const a=document.createElement("textarea");a.value=text;a.style.cssText="position:fixed;opacity:0";(document.querySelector("dialog[open]")||document.body).append(a);a.select();let ok=false;try{ok=document.execCommand("copy")}catch(_){}a.remove();if(!ok)return toast("Copy was blocked. Select the text and copy it by hand.")}toast(msg)}
 
+/* ---------- shop ---------- */
 function render(){
   const cs=[...new Set(items.map(i=>i.c).filter(Boolean))];
   if(!cs.includes(cat))cat="All";
@@ -146,69 +148,85 @@ function render(){
   let v=items.filter(i=>(cat==="All"||i.c===cat)&&(i.t+" "+(i.c||"")).toLowerCase().includes(q));
   if(sort==="az")v=v.slice().sort((a,b)=>a.t.localeCompare(b.t));
   $("#count").textContent=v.length+(v.length===1?" product":" products");
-  $("#links").innerHTML=v.map(i=>`<a class="lnk" href="${esc(i.u)}" target="_blank" rel="sponsored noopener noreferrer">${i.img?`<img class="pi" src="${esc(i.img)}" alt="" loading="lazy">`:`<span class="ph">${cart}</span>`}<span class="pn">${esc(i.t)}</span></a>`).join("")||`<p class="none">${items.length?"No products match your search.":"No products yet. Please check back soon."}</p>`}
+  $("#links").innerHTML=v.map(i=>`<a class="lnk" href="${esc(i.u)}" target="_blank" rel="sponsored noopener noreferrer">${i.img?`<img class="pi" src="${esc(pend[i.img]||i.img)}" alt="" loading="lazy">`:`<span class="ph">${cart}</span>`}<span class="pn">${esc(i.t)}</span></a>`).join("")||`<p class="none">${items.length?"No products match your search.":"No products yet. Please check back soon."}</p>`}
+async function boot(){
+  $("#links").innerHTML='<p class="none">Loading products...</p>';
+  try{const r=await fetch("products.json?v="+Date.now(),{cache:"no-store"});if(!r.ok)throw 0;const a=await r.json();if(!Array.isArray(a))throw 0;items=a;render()}
+  catch(e){items=[];$("#count").textContent="";$("#links").innerHTML='<p class="none">Products could not be loaded. Please refresh the page in a moment.</p>'}
+}
+$("#chips").onclick=e=>{const b=e.target.closest("[data-c]");if(b){cat=b.dataset.c;render()}};
+$("#q").oninput=e=>{q=e.target.value.trim().toLowerCase();render()};
+$("#sort").onchange=e=>{sort=e.target.value;render()};
 
+/* ---------- dialogs and pages ---------- */
 function show(t,h){$("#dT").textContent=t;$("#dB").innerHTML=h;const d=$("#dlg");if(!d.open)d.showModal()}
 function share(){
   const u=encodeURIComponent(location.href),t=encodeURIComponent("Check out The Cart Find");
   const L=[["Facebook",`https://www.facebook.com/sharer.php?u=${u}`],["iMessage",`sms:?&body=${t}%20${u}`],["WhatsApp",`https://wa.me/?text=${t}%20${u}`],["Twitter",`https://twitter.com/intent/tweet?text=${t}&url=${u}`],["Line",`https://social-plugins.line.me/lineit/share?url=${u}`],["Kakao",`https://story.kakao.com/share?url=${u}`],["Reddit",`https://www.reddit.com/submit?url=${u}&title=${t}`],["LinkedIn",`https://www.linkedin.com/sharing/share-offsite/?url=${u}`],["Email",`mailto:?subject=${t}&body=${u}`]];
   show("Share",L.map(([n,h])=>`<a class="row" href="${h}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")+`<input class="fld" readonly value="${esc(location.href)}" aria-label="Page link"><button class="row blk" data-act="copy">Copy link</button>`+(navigator.share?'<button class="row" data-act="native">Share from your device</button>':""));
 }
-function manage(){
-  if(!owner())return gate();
-  const it=items[ed]||{},cs=[...new Set(items.map(i=>i.c).filter(Boolean))];
-  show("Manage products",`<p>Changes save in this browser only. Use Copy JSON to move them into the page code.</p><form id="addForm"><input class="fld" id="fT" placeholder="Product name" aria-label="Product name" required maxlength="200" value="${esc(it.t||"")}"><input class="fld" id="fU" type="url" placeholder="https://your-affiliate-link" aria-label="Affiliate link" required value="${esc(it.u||"")}"><input class="fld" id="fC" list="cats" placeholder="Category, for example Home Decor (optional)" aria-label="Category" maxlength="30" value="${esc(it.c||"")}"><datalist id="cats">${cs.map(c=>`<option value="${esc(c)}">`).join("")}</datalist><label class="up">${it.img?"Change product image":"Product image (choose a file, or paste a copied image)"}<input class="fld" id="fI" type="file" accept="image/*"></label>${it.img?`<img class="pi" style="width:88px;margin:0 0 8px;border:1px solid var(--line);border-radius:10px" src="${esc(it.img)}" alt="">`:""}<button class="row blk">${ed>-1?"Save product":"Add product"}</button>${ed>-1?'<button type="button" class="row" data-act="cancel">Cancel</button>':""}</form><div style="max-height:170px;overflow:auto;margin:8px 0">`+(items.map((i,n)=>`<div class="del"><span>${esc(i.t)}</span><span><button class="link" data-act="edit" data-i="${n}">Edit</button> <button class="link" data-act="del" data-i="${n}" aria-label="Delete ${esc(i.t)}">Delete</button></span></div>`).join("")||"<p>No products yet.</p>")+`</div><button class="row" data-act="json">Copy JSON</button><button class="row" data-act="reset">Reset to default products</button><button class="row" data-act="lock">Lock owner tools</button>`);
-}
 function about(){show("About us","<p>The Cart Find is a collection of hand-picked products we like. Tap any product to open it in the store and buy it there. Find it, love it, cart it.</p><p>Some links are affiliate links. If you buy through them we may earn a small commission, and the price you pay stays the same.</p>")}
 function cookies(){show("Cookie policy","<p>We use cookies and similar storage only to remember your choices on this device, such as this notice. We do not use them to track you across other sites.</p><p>Affiliate links open store websites that have their own cookie policies.</p>")}
 const go={home(){scrollTo({top:0})},about,cookies,manage};
-
 const menu=o=>{$("#drawer").hidden=!o;$("#scrim").hidden=!o;$("#menuBtn").setAttribute("aria-expanded",o)};
 $("#menuBtn").onclick=()=>menu(true);
 $("#menuClose").onclick=$("#scrim").onclick=()=>menu(false);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")menu(false)});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b){menu(false);go[b.dataset.go]()}});
 $("#shareBtn").onclick=share;
-
 const d=$("#dlg");
 d.addEventListener("click",e=>{const r=d.getBoundingClientRect(),out=e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;if((e.target===d&&out)||e.target.closest("[data-close]"))d.close()});
+
+/* ---------- owner tools: products are saved to your GitHub repository ---------- */
+const repo=()=>{let{owner,repo}=GH;if(!owner&&location.hostname.endsWith(".github.io")){owner=location.hostname.split(".")[0];repo=location.pathname.split("/")[1]||owner+".github.io"}return owner&&repo?{owner,repo}:null};
+const tok=()=>ls.g("tcf-gh")||"";
+const owner=()=>!!tok();
+const applyOwner=()=>document.querySelectorAll("[data-own]").forEach(e=>e.hidden=!owner());
+const gh=(p,o={})=>{const r=repo();return fetch(`https://api.github.com/repos/${r.owner}/${r.repo}/${p}`,{...o,headers:{Accept:"application/vnd.github+json","Content-Type":"application/json",Authorization:"Bearer "+tok()}})};
+const b64=s=>btoa(unescape(encodeURIComponent(s)));
+async function fail(r){let m="";try{m=(await r.json()).message}catch(_){}return new Error(m||"error "+r.status)}
+async function put(path,content,msg){const g=await gh("contents/"+path);let sha;if(g.ok)sha=(await g.json()).sha;const r=await gh("contents/"+path,{method:"PUT",body:JSON.stringify({message:msg,content,sha})});if(!r.ok)throw await fail(r)}
+async function drop(path){if(!path||!path.startsWith("images/"))return;try{const g=await gh("contents/"+path);if(!g.ok)return;const sha=(await g.json()).sha;await gh("contents/"+path,{method:"DELETE",body:JSON.stringify({message:"Remove old product image",sha})})}catch(_){}}
+const saveItems=msg=>put("products.json",b64(JSON.stringify(items,null,1)+"\n"),msg);
+async function pull(){const r=await gh("contents/products.json");if(r.status===404)items=[];else{if(!r.ok)throw await fail(r);const j=await r.json();items=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))))}synced=true;render()}
+const fit=file=>new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const s=Math.min(1,700/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.82))};im.src=r.result};r.readAsDataURL(file)});
+function gate(){show("Owner sign in",repo()?'<p>Paste your GitHub token to manage products. It is saved only on this device, and nobody can change the shop without it.</p><form id="pwForm"><input class="fld" id="pw" type="password" autocomplete="off" aria-label="GitHub token" required><button class="row blk">Connect GitHub</button></form>':"<p>Owner tools work once the site is on GitHub Pages. If you use your own domain, fill in GH.owner and GH.repo at the top of the page code.</p>")}
+async function manage(){
+  if(!owner())return gate();
+  if(!synced){toast("Loading from GitHub...");try{await pull()}catch(x){return toast("Could not load from GitHub: "+x.message)}}
+  const it=items[ed]||{},cs=[...new Set(items.map(i=>i.c).filter(Boolean))];
+  show("Manage products",`<p>Every change is saved to your GitHub repository. Visitors see it within a few minutes.</p><form id="addForm"><input class="fld" id="fT" placeholder="Product name" aria-label="Product name" required maxlength="200" value="${esc(it.t||"")}"><input class="fld" id="fU" type="url" placeholder="https://your-affiliate-link" aria-label="Affiliate link" required value="${esc(it.u||"")}"><input class="fld" id="fC" list="cats" placeholder="Category, for example Home Decor (optional)" aria-label="Category" maxlength="30" value="${esc(it.c||"")}"><datalist id="cats">${cs.map(c=>`<option value="${esc(c)}">`).join("")}</datalist><label class="up">${it.img?"Change product image":"Product image (choose a file, or paste a copied image)"}<input class="fld" id="fI" type="file" accept="image/*"></label>${it.img?`<img class="pi" style="width:88px;margin:0 0 8px;border:1px solid var(--line);border-radius:10px" src="${esc(pend[it.img]||it.img)}" alt="">`:""}<button class="row blk">${ed>-1?"Save product":"Add product"}</button>${ed>-1?'<button type="button" class="row" data-act="cancel">Cancel</button>':""}</form><div style="max-height:170px;overflow:auto;margin:8px 0">`+(items.map((i,n)=>`<div class="del"><span>${esc(i.t)}</span><span><button class="link" data-act="edit" data-i="${n}">Edit</button> <button class="link" data-act="del" data-i="${n}" aria-label="Delete ${esc(i.t)}">Delete</button></span></div>`).join("")||"<p>No products yet.</p>")+`</div><button class="row" data-act="lock">Disconnect GitHub on this device</button>`);
+}
 d.addEventListener("paste",e=>{const f=[...(e.clipboardData?.files||[])].find(x=>x.type.startsWith("image/")),i=$("#fI");if(f&&i){e.preventDefault();const dt=new DataTransfer();dt.items.add(f);i.files=dt.files;toast("Image pasted. Now save the product.")}});
-$("#dB").onclick=e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
+$("#dB").onclick=async e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
   if(a==="copy")copy(location.href,"Link copied");
   if(a==="native")navigator.share({title:"The Cart Find",url:location.href}).catch(()=>{});
-  if(a==="del"){items.splice(+b.dataset.i,1);ed=-1;save();render();manage()}
   if(a==="edit"){ed=+b.dataset.i;manage()}
   if(a==="cancel"){ed=-1;manage()}
-  if(a==="lock"){ls.s("tcf-owner","0");applyOwner();$("#dlg").close();toast("Owner tools locked")}
-  if(a==="json")copy(JSON.stringify(items,null,1),"JSON copied");
-  if(a==="reset"){items=PRODUCTS.slice();ed=-1;save();render();manage();toast("Default products restored")}};
+  if(a==="lock"){ls.s("tcf-gh","");synced=false;ed=-1;applyOwner();d.close();toast("Disconnected from GitHub")}
+  if(a==="del"){const prev=items,gone=items[+b.dataset.i]||{};items=items.filter((_,n)=>n!==+b.dataset.i);ed=-1;toast("Saving to GitHub...");try{await saveItems("Delete product");await drop(gone.img);render();manage();toast("Deleted. Visitors see it within a few minutes.")}catch(x){items=prev;toast("GitHub did not save it: "+x.message)}}};
 $("#dB").onsubmit=async e=>{e.preventDefault();
-  if(e.target.id==="pwForm"){let ok=false;try{ok=await sha($("#pw").value)===OWNER_HASH}catch(_){}if(!ok)return toast("That passcode is not correct.");ls.s("tcf-owner","1");applyOwner();return manage()}
+  if(e.target.id==="pwForm"){ls.s("tcf-gh",$("#pw").value.trim());toast("Checking token...");try{await pull();applyOwner();return manage()}catch(x){ls.s("tcf-gh","");synced=false;applyOwner();return toast("GitHub rejected that token: "+x.message)}}
   const u=$("#fU").value.trim();if(!/^https?:\/\//i.test(u))return toast("The link must start with http:// or https://");
-  const f=$("#fI").files[0];let img=(items[ed]||{}).img||"";
-  if(f){try{img=await fit(f)}catch(_){return toast("That image could not be read. Try a JPG or PNG.")}}
-  const n={t:$("#fT").value.trim(),u,c:$("#fC").value.trim(),img},was=ed>-1;
-  if(was)items[ed]=n;else items.unshift(n);
-  ed=-1;const ok=save();render();manage();toast(ok?(was?"Product saved":"Product added"):"Could not save. Browser storage may be full, so try a smaller image.")};
+  const f=$("#fI").files[0],was=ed>-1,prev=items;let img=(items[ed]||{}).img||"";const oldImg=img;
+  toast("Saving to GitHub...");
+  try{
+    if(f){const data=await fit(f),p="images/"+Date.now()+".jpg";await put(p,data.split(",")[1],"Add product image");pend[p]=data;img=p}
+    const n={t:$("#fT").value.trim(),u,c:$("#fC").value.trim(),img};
+    items=items.slice();if(was)items[ed]=n;else items.unshift(n);
+    await saveItems(was?"Update product":"Add product");
+    if(f&&oldImg&&oldImg!==img)await drop(oldImg);
+    ed=-1;render();manage();toast("Saved. Visitors will see it within a few minutes.");
+  }catch(x){items=prev;toast("GitHub did not save it: "+x.message)}};
+let tap=0,tapT;$("#tap").onclick=()=>{tap++;clearTimeout(tapT);tapT=setTimeout(()=>tap=0,3000);if(tap>=5){tap=0;manage()}};
 
+/* ---------- cookie notice ---------- */
 if(!ls.g("tcf-cookie"))$("#cookie").hidden=false;
 $("#acc").onclick=()=>{ls.s("tcf-cookie","all");$("#cookie").hidden=true};
 $("#rej").onclick=()=>{ls.s("tcf-cookie","necessary");$("#cookie").hidden=true};
-let ed=-1,cat="All",q="",sort="new";
-$("#q").oninput=e=>{q=e.target.value.trim().toLowerCase();render()};
-$("#sort").onchange=e=>{sort=e.target.value;render()};
-$("#chips").onclick=e=>{const b=e.target.closest("[data-c]");if(b){cat=b.dataset.c;render()}};
-const cart='<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 10.5h9.2L19 7H6.2"/><circle cx="9" cy="19" r="1.3"/><circle cx="16" cy="19" r="1.3"/></svg>';
-const fit=file=>new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const s=Math.min(1,700/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.82))};im.src=r.result};r.readAsDataURL(file)});
-const OWNER_HASH="ec2b6ef74f31d83ef6c72d32c5cbc29aebeec6c5a82264dfa0e3080c0cdc95cb";
-const sha=async s=>{s=s.replace(/[\s-]/g,"").toUpperCase();return [...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,"0")).join("")};
-const owner=()=>ls.g("tcf-owner")==="1";
-const applyOwner=()=>document.querySelectorAll("[data-own]").forEach(e=>e.hidden=!owner());
-function gate(){show("Owner sign in",`<p>Enter the owner passcode to manage products.</p><form id="pwForm"><input class="fld" id="pw" type="password" autocomplete="current-password" aria-label="Owner passcode" required><button class="row blk">Unlock</button></form>`)}
-let tap=0,tapT;$("#tap").onclick=()=>{tap++;clearTimeout(tapT);tapT=setTimeout(()=>tap=0,3000);if(tap>=5){tap=0;manage()}};
 applyOwner();
 $("#yr").textContent=new Date().getFullYear();
-render();
+boot();
 </script>
 </body>
 </html>
