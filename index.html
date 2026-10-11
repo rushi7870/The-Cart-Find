@@ -104,7 +104,7 @@ dialog{overflow:auto}
 
 <footer class="ft"><div class="fi">
   <p class="fd"><b><i>This site contains product affiliate links. We may receive a commission if you make a purchase after clicking on one of these links. #TheCartFind</i></b></p>
-  <p class="fm">&copy; <span id="yr"></span> The Cart Find &nbsp; <button class="link" data-go="about">About us</button> &nbsp; <button class="link" data-go="cookies">Cookie policy</button> &nbsp; <button class="link" data-go="manage">Manage products</button></p>
+  <p class="fm"><span id="tap">&copy; <span id="yr"></span> The Cart Find</span> &nbsp; <button class="link" data-go="about">About us</button> &nbsp; <button class="link" data-go="cookies">Cookie policy</button><span data-own hidden> &nbsp; <button class="link" data-go="manage">Manage products</button></span></p>
 </div></footer>
 
 <div id="scrim" hidden></div>
@@ -113,7 +113,7 @@ dialog{overflow:auto}
   <button class="mi" data-go="home">Home</button>
   <button class="mi" data-go="about">About us</button>
   <button class="mi" data-go="cookies">Cookie policy</button>
-  <button class="mi" data-go="manage">Manage products</button>
+  <button class="mi" data-go="manage" data-own hidden>Manage products</button>
 </nav>
 
 <dialog id="dlg" aria-labelledby="dT">
@@ -155,8 +155,9 @@ function share(){
   show("Share",L.map(([n,h])=>`<a class="row" href="${h}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")+`<input class="fld" readonly value="${esc(location.href)}" aria-label="Page link"><button class="row blk" data-act="copy">Copy link</button>`+(navigator.share?'<button class="row" data-act="native">Share from your device</button>':""));
 }
 function manage(){
+  if(!owner())return gate();
   const it=items[ed]||{},cs=[...new Set(items.map(i=>i.c).filter(Boolean))];
-  show("Manage products",`<p>Changes save in this browser only. Use Copy JSON to move them into the page code.</p><form id="addForm"><input class="fld" id="fT" placeholder="Product name" aria-label="Product name" required maxlength="200" value="${esc(it.t||"")}"><input class="fld" id="fU" type="url" placeholder="https://your-affiliate-link" aria-label="Affiliate link" required value="${esc(it.u||"")}"><input class="fld" id="fC" list="cats" placeholder="Category, for example Home Decor (optional)" aria-label="Category" maxlength="30" value="${esc(it.c||"")}"><datalist id="cats">${cs.map(c=>`<option value="${esc(c)}">`).join("")}</datalist><label class="up">${it.img?"Change product image":"Product image (choose a file, or paste a copied image)"}<input class="fld" id="fI" type="file" accept="image/*"></label>${it.img?`<img class="pi" style="width:88px;margin:0 0 8px;border:1px solid var(--line);border-radius:10px" src="${esc(it.img)}" alt="">`:""}<button class="row blk">${ed>-1?"Save product":"Add product"}</button>${ed>-1?'<button type="button" class="row" data-act="cancel">Cancel</button>':""}</form><div style="max-height:170px;overflow:auto;margin:8px 0">`+(items.map((i,n)=>`<div class="del"><span>${esc(i.t)}</span><span><button class="link" data-act="edit" data-i="${n}">Edit</button> <button class="link" data-act="del" data-i="${n}" aria-label="Delete ${esc(i.t)}">Delete</button></span></div>`).join("")||"<p>No products yet.</p>")+`</div><button class="row" data-act="json">Copy JSON</button><button class="row" data-act="reset">Reset to default products</button>`);
+  show("Manage products",`<p>Changes save in this browser only. Use Copy JSON to move them into the page code.</p><form id="addForm"><input class="fld" id="fT" placeholder="Product name" aria-label="Product name" required maxlength="200" value="${esc(it.t||"")}"><input class="fld" id="fU" type="url" placeholder="https://your-affiliate-link" aria-label="Affiliate link" required value="${esc(it.u||"")}"><input class="fld" id="fC" list="cats" placeholder="Category, for example Home Decor (optional)" aria-label="Category" maxlength="30" value="${esc(it.c||"")}"><datalist id="cats">${cs.map(c=>`<option value="${esc(c)}">`).join("")}</datalist><label class="up">${it.img?"Change product image":"Product image (choose a file, or paste a copied image)"}<input class="fld" id="fI" type="file" accept="image/*"></label>${it.img?`<img class="pi" style="width:88px;margin:0 0 8px;border:1px solid var(--line);border-radius:10px" src="${esc(it.img)}" alt="">`:""}<button class="row blk">${ed>-1?"Save product":"Add product"}</button>${ed>-1?'<button type="button" class="row" data-act="cancel">Cancel</button>':""}</form><div style="max-height:170px;overflow:auto;margin:8px 0">`+(items.map((i,n)=>`<div class="del"><span>${esc(i.t)}</span><span><button class="link" data-act="edit" data-i="${n}">Edit</button> <button class="link" data-act="del" data-i="${n}" aria-label="Delete ${esc(i.t)}">Delete</button></span></div>`).join("")||"<p>No products yet.</p>")+`</div><button class="row" data-act="json">Copy JSON</button><button class="row" data-act="reset">Reset to default products</button><button class="row" data-act="lock">Lock owner tools</button>`);
 }
 function about(){show("About us","<p>The Cart Find is a collection of hand-picked products we like. Tap any product to open it in the store and buy it there. Find it, love it, cart it.</p><p>Some links are affiliate links. If you buy through them we may earn a small commission, and the price you pay stays the same.</p>")}
 function cookies(){show("Cookie policy","<p>We use cookies and similar storage only to remember your choices on this device, such as this notice. We do not use them to track you across other sites.</p><p>Affiliate links open store websites that have their own cookie policies.</p>")}
@@ -178,9 +179,12 @@ $("#dB").onclick=e=>{const b=e.target.closest("[data-act]");if(!b)return;const a
   if(a==="del"){items.splice(+b.dataset.i,1);ed=-1;save();render();manage()}
   if(a==="edit"){ed=+b.dataset.i;manage()}
   if(a==="cancel"){ed=-1;manage()}
+  if(a==="lock"){ls.s("tcf-owner","0");applyOwner();$("#dlg").close();toast("Owner tools locked")}
   if(a==="json")copy(JSON.stringify(items,null,1),"JSON copied");
   if(a==="reset"){items=PRODUCTS.slice();ed=-1;save();render();manage();toast("Default products restored")}};
-$("#dB").onsubmit=async e=>{e.preventDefault();const u=$("#fU").value.trim();if(!/^https?:\/\//i.test(u))return toast("The link must start with http:// or https://");
+$("#dB").onsubmit=async e=>{e.preventDefault();
+  if(e.target.id==="pwForm"){let ok=false;try{ok=await sha($("#pw").value)===OWNER_HASH}catch(_){}if(!ok)return toast("That passcode is not correct.");ls.s("tcf-owner","1");applyOwner();return manage()}
+  const u=$("#fU").value.trim();if(!/^https?:\/\//i.test(u))return toast("The link must start with http:// or https://");
   const f=$("#fI").files[0];let img=(items[ed]||{}).img||"";
   if(f){try{img=await fit(f)}catch(_){return toast("That image could not be read. Try a JPG or PNG.")}}
   const n={t:$("#fT").value.trim(),u,c:$("#fC").value.trim(),img},was=ed>-1;
@@ -196,6 +200,13 @@ $("#sort").onchange=e=>{sort=e.target.value;render()};
 $("#chips").onclick=e=>{const b=e.target.closest("[data-c]");if(b){cat=b.dataset.c;render()}};
 const cart='<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 10.5h9.2L19 7H6.2"/><circle cx="9" cy="19" r="1.3"/><circle cx="16" cy="19" r="1.3"/></svg>';
 const fit=file=>new Promise((res,rej)=>{const r=new FileReader();r.onerror=rej;r.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const s=Math.min(1,700/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.82))};im.src=r.result};r.readAsDataURL(file)});
+const OWNER_HASH="7bdcac140ef18e8eae31c272427efb16093619eWJh8J6Mx9DrGXKEv3ojKmqw8Cv9pscK";
+const sha=async s=>{s=s.replace(/[\s-]/g,"").toUpperCase();return [...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,"0")).join("")};
+const owner=()=>ls.g("tcf-owner")==="1";
+const applyOwner=()=>document.querySelectorAll("[data-own]").forEach(e=>e.hidden=!owner());
+function gate(){show("Owner sign in",`<p>Enter the owner passcode to manage products.</p><form id="pwForm"><input class="fld" id="pw" type="password" autocomplete="current-password" aria-label="Owner passcode" required><button class="row blk">Unlock</button></form>`)}
+let tap=0,tapT;$("#tap").onclick=()=>{tap++;clearTimeout(tapT);tapT=setTimeout(()=>tap=0,3000);if(tap>=5){tap=0;manage()}};
+applyOwner();
 $("#yr").textContent=new Date().getFullYear();
 render();
 </script>
